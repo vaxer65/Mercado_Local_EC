@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "202994382976",
+    "project_id": "mercadolocalec-82f67",
+    "storage_bucket": "mercadolocalec-82f67.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:202994382976:android:375863c962dc8c0d438e65",
+        "android_client_info": {
+          "package_name": "com.example.holamundo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA8KSKo2FJEeMf5icQJaJjORN4s4llb2LU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
