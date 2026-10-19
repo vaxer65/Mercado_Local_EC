@@ -27,4 +27,10 @@ sealed class Rutas(val ruta: String) {
     // Productor
     object PanelProductor  : Rutas("panel_productor")
     object AgregarProducto : Rutas("agregar_producto")
+
+    // Nuevas funciones (AR y Escáner)
+    object VisualizadorAR : Rutas("visualizador_ar/{productoId}") {
+        fun crearRuta(productoId: String) = "visualizador_ar/$productoId"
+    }
+    object Escaner : Rutas("escaner")
 }

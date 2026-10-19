@@ -70,6 +70,7 @@ class PedidosViewModel(application: Application) : AndroidViewModel(application)
                 productoId = producto.id,
                 productoNombre = producto.nombre,
                 productoEmoji = producto.emoji,
+                productoCategoria = producto.categoria,
                 consumidorId = consumidorId,
                 productorId = producto.productorId,
                 cantidad = cantidad,

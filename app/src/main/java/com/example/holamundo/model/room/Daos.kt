@@ -5,6 +5,7 @@ import com.example.holamundo.model.Mensaje
 import com.example.holamundo.model.Pedido
 import com.example.holamundo.model.Producto
 import com.example.holamundo.model.Usuario
+import com.example.holamundo.model.Valoracion
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -17,6 +18,9 @@ interface UsuarioDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun registrar(usuario: Usuario)
+
+    @Update
+    suspend fun actualizar(usuario: Usuario)
 }
 
 @Dao
@@ -65,4 +69,16 @@ interface MensajeDao {
 
     @Query("SELECT DISTINCT chatId FROM mensajes WHERE chatId LIKE :userId || '_%' OR chatId LIKE '%_' || :userId")
     fun obtenerChatsDeUsuario(userId: String): Flow<List<String>>
+}
+
+@Dao
+interface ValoracionDao {
+    @Query("SELECT * FROM valoraciones WHERE productoId = :productoId ORDER BY timestamp DESC")
+    fun obtenerPorProducto(productoId: String): Flow<List<Valoracion>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertar(valoracion: Valoracion)
+
+    @Query("SELECT AVG(calificacion) FROM valoraciones WHERE productoId = :productoId")
+    fun obtenerCalificacionPromedio(productoId: String): Flow<Float?>
 }

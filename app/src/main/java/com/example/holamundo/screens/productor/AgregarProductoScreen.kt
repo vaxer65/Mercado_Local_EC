@@ -1,5 +1,11 @@
 package com.example.holamundo.screens.productor
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.location.Location
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,21 +15,29 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.example.holamundo.Colores
 import com.example.holamundo.model.DatosPrueba
 import com.example.holamundo.viewmodel.AuthViewModel
 import com.example.holamundo.viewmodel.CatalogoViewModel
+import com.example.holamundo.network.RetrofitClient
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.location.CurrentLocationRequest
+import kotlinx.coroutines.launch
 
 private val Blanco         = Colores.Blanco
 private val VerdePrincipal = Colores.VerdePrincipal
@@ -39,6 +53,8 @@ fun AgregarProductoScreen(
     onVolver: () -> Unit,
     onAgregarExito: () -> Unit
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val productorId = authViewModel.usuarioActualUid ?: ""
     val productorNombre = authViewModel.usuarioActualNombre ?: "Finca Local"
 
@@ -47,6 +63,14 @@ fun AgregarProductoScreen(
     var unidad by remember { mutableStateOf("unidad") }
     var stockStr by remember { mutableStateOf("") }
     var descripcion by remember { mutableStateOf("") }
+
+    // Geolocation States
+    var latitud by remember { mutableStateOf(0.0) }
+    var longitud by remember { mutableStateOf(0.0) }
+    var direccionVerificada by remember { mutableStateOf("") }
+    var ubicacionEsReal by remember { mutableStateOf(false) }
+    var verificandoUbicacion by remember { mutableStateOf(false) }
+    var ubicacionVerificadaMensaje by remember { mutableStateOf("") }
 
     // Selectores
     var categoriaSeleccionada by remember { mutableStateOf("Frutas") }
@@ -60,6 +84,78 @@ fun AgregarProductoScreen(
     var cargando by remember { mutableStateOf(false) }
 
     val listaEmojis = listOf("🥑", "🍓", "🥕", "🧀", "🍋", "🧅", "🧶", "🏺", "🍯", "🥔", "🍍", "🍌", "🍎", "🥦", "🌽")
+
+    // GPS Services Location
+    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+    
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+        onResult = { permissions ->
+            val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+            val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+            if (fineGranted || coarseGranted) {
+                // Obtener ubicación
+                obtenerUbicacion(
+                    context = context,
+                    fusedLocationClient = fusedLocationClient,
+                    onStart = {
+                        verificandoUbicacion = true
+                        errorMensaje = ""
+                        ubicacionVerificadaMensaje = ""
+                    },
+                    onLocationResult = { location ->
+                        if (location != null) {
+                            val isMock = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                                location.isMock
+                            } else {
+                                @Suppress("DEPRECATION")
+                                location.isFromMockProvider
+                            }
+                            
+                            if (isMock) {
+                                verificandoUbicacion = false
+                                errorMensaje = "🔒 Ubicación rechazada: Se detectó el uso de un GPS simulado/falso (Fraude detectado)."
+                                ubicacionEsReal = false
+                            } else {
+                                coroutineScope.launch {
+                                    try {
+                                        val response = RetrofitClient.geocodingService.reverseGeocode(
+                                            lat = location.latitude,
+                                            lon = location.longitude
+                                        )
+                                        val countryCode = response.address?.country_code?.lowercase() ?: ""
+                                        val country = response.address?.country?.lowercase() ?: ""
+                                        
+                                        if (countryCode == "ec" || country.contains("ecuador")) {
+                                            latitud = location.latitude
+                                            longitud = location.longitude
+                                            direccionVerificada = response.display_name
+                                            ubicacionEsReal = true
+                                            errorMensaje = ""
+                                        } else {
+                                            errorMensaje = "🔒 Ubicación fuera de rango: El geolocalizador indica que estás en: ${response.address?.country ?: "País Desconocido"}. Solo se permiten productores dentro de Ecuador."
+                                            ubicacionEsReal = false
+                                        }
+                                    } catch (e: Exception) {
+                                        errorMensaje = "Error al verificar procedencia de ubicación. Compruebe su conexión a internet. (${e.message})"
+                                        ubicacionEsReal = false
+                                    } finally {
+                                        verificandoUbicacion = false
+                                    }
+                                }
+                            }
+                        } else {
+                            verificandoUbicacion = false
+                            errorMensaje = "No se pudo obtener la ubicación GPS actual. Intente de nuevo con el GPS encendido."
+                            ubicacionEsReal = false
+                        }
+                    }
+                )
+            } else {
+                errorMensaje = "Permiso de ubicación denegado. Se requiere el GPS obligatoriamente para publicar."
+            }
+        }
+    )
 
     // Filtrar "Todos" y "Todas" de las listas de DatosPrueba
     val categorias = DatosPrueba.categorias.filter { it != "Todos" }
@@ -290,6 +386,171 @@ fun AgregarProductoScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // GPS Obligatorio y Antifraude
+                    Text("Ubicación del productor", color = GrisTexto, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A2E)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            if (verificandoUbicacion) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    CircularProgressIndicator(
+                                        color = VerdePrincipal,
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Text("Validando GPS real y región (Ecuador)...", color = Blanco, fontSize = 12.sp)
+                                }
+                            } else if (ubicacionEsReal) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text("🔒", fontSize = 14.sp)
+                                    Text(
+                                        text = "Ubicación Verificada: Sin simuladores / Ecuador",
+                                        color = Color(0xFF66BB6A),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = direccionVerificada,
+                                    color = Blanco,
+                                    fontSize = 11.sp,
+                                    lineHeight = 16.sp
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Lat: ${String.format("%.5f", latitud)}, Lon: ${String.format("%.5f", longitud)}",
+                                    color = GrisTexto,
+                                    fontSize = 10.sp
+                                )
+                            } else {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text("⚠️", fontSize = 14.sp)
+                                    Text(
+                                        text = "Ubicación GPS Requerida Obligatoriamente",
+                                        color = Color(0xFFFFB300),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Debes capturar tu ubicación geográfica para que los clientes puedan verificar el origen real del producto.",
+                                    color = GrisTexto,
+                                    fontSize = 11.sp,
+                                    lineHeight = 16.sp
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Button(
+                                onClick = {
+                                    val fineGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                                    val coarseGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                                    if (fineGranted || coarseGranted) {
+                                        obtenerUbicacion(
+                                            context = context,
+                                            fusedLocationClient = fusedLocationClient,
+                                            onStart = {
+                                                verificandoUbicacion = true
+                                                errorMensaje = ""
+                                                ubicacionVerificadaMensaje = ""
+                                            },
+                                            onLocationResult = { location ->
+                                                if (location != null) {
+                                                    val isMock = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                                                        location.isMock
+                                                    } else {
+                                                        @Suppress("DEPRECATION")
+                                                        location.isFromMockProvider
+                                                    }
+                                                    
+                                                    if (isMock) {
+                                                        verificandoUbicacion = false
+                                                        errorMensaje = "🔒 Ubicación rechazada: Se detectó el uso de un GPS simulado/falso (Fraude detectado)."
+                                                        ubicacionEsReal = false
+                                                    } else {
+                                                        coroutineScope.launch {
+                                                            try {
+                                                                val response = RetrofitClient.geocodingService.reverseGeocode(
+                                                                    lat = location.latitude,
+                                                                    lon = location.longitude
+                                                                )
+                                                                val countryCode = response.address?.country_code?.lowercase() ?: ""
+                                                                val country = response.address?.country?.lowercase() ?: ""
+                                                                
+                                                                if (countryCode == "ec" || country.contains("ecuador")) {
+                                                                    latitud = location.latitude
+                                                                    longitud = location.longitude
+                                                                    direccionVerificada = response.display_name
+                                                                    ubicacionEsReal = true
+                                                                    errorMensaje = ""
+                                                                } else {
+                                                                    errorMensaje = "🔒 Ubicación fuera de rango: El geolocalizador indica que estás en: ${response.address?.country ?: "País Desconocido"}. Solo se permiten productores dentro de Ecuador."
+                                                                    ubicacionEsReal = false
+                                                                }
+                                                            } catch (e: Exception) {
+                                                                errorMensaje = "Error al verificar procedencia de ubicación. Compruebe su conexión a internet. (${e.message})"
+                                                                ubicacionEsReal = false
+                                                            } finally {
+                                                                verificandoUbicacion = false
+                                                            }
+                                                        }
+                                                    }
+                                                } else {
+                                                    verificandoUbicacion = false
+                                                    errorMensaje = "No se pudo obtener la ubicación GPS actual. Intente de nuevo con el GPS encendido."
+                                                    ubicacionEsReal = false
+                                                }
+                                            }
+                                        )
+                                    } else {
+                                        launcher.launch(
+                                            arrayOf(
+                                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                                Manifest.permission.ACCESS_COARSE_LOCATION
+                                            )
+                                        )
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = if (ubicacionEsReal) Color(0xFF2E7D32) else VerdePrincipal),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth().height(36.dp),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Text(
+                                        text = if (ubicacionEsReal) "Actualizar Ubicación GPS" else "Obtener y Verificar Ubicación (GPS)",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Blanco
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // Error
                     if (errorMensaje.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(12.dp))
@@ -315,6 +576,7 @@ fun AgregarProductoScreen(
                                 unidad.isBlank() -> errorMensaje = "Ingresa la unidad de venta"
                                 stock == null || stock < 0 -> errorMensaje = "Ingresa un stock inicial válido"
                                 descripcion.isBlank() -> errorMensaje = "Ingresa una descripción del producto"
+                                !ubicacionEsReal -> errorMensaje = "⚠️ Debes verificar tu ubicación GPS obligatoriamente para poder publicar."
                                 else -> {
                                     cargando = true
                                     catalogoViewModel.agregarProducto(
@@ -327,7 +589,11 @@ fun AgregarProductoScreen(
                                         stock = stock,
                                         provincia = provinciaSeleccionada,
                                         emoji = emojiSeleccionado,
-                                        descripcion = descripcion
+                                        descripcion = descripcion,
+                                        latitud = latitud,
+                                        longitud = longitud,
+                                        direccionVerificada = direccionVerificada,
+                                        ubicacionEsReal = ubicacionEsReal
                                     ) { exito ->
                                         cargando = false
                                         if (exito) {
@@ -339,7 +605,7 @@ fun AgregarProductoScreen(
                                 }
                             }
                         },
-                        enabled = !cargando,
+                        enabled = !cargando && !verificandoUbicacion,
                         colors = ButtonDefaults.buttonColors(containerColor = VerdePrincipal),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
@@ -355,6 +621,37 @@ fun AgregarProductoScreen(
                 }
             }
         }
+    }
+}
+
+private fun obtenerUbicacion(
+    context: Context,
+    fusedLocationClient: com.google.android.gms.location.FusedLocationProviderClient,
+    onStart: () -> Unit,
+    onLocationResult: (Location?) -> Unit
+) {
+    onStart()
+    if (ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    ) {
+        val request = CurrentLocationRequest.Builder()
+            .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+            .build()
+        fusedLocationClient.getCurrentLocation(request, null)
+            .addOnSuccessListener { location ->
+                onLocationResult(location)
+            }
+            .addOnFailureListener {
+                onLocationResult(null)
+            }
+    } else {
+        onLocationResult(null)
     }
 }
 

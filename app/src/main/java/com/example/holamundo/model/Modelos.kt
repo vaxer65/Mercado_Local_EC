@@ -46,7 +46,12 @@ data class Producto(
     val stock: Int = 0,
     val provincia: String = "",
     val imagenUrl: String = "",
-    val productorId: String = "" // ID de usuario del productor propietario
+    val productorId: String = "", // ID de usuario del productor propietario
+    val latitud: Double = 0.0,
+    val longitud: Double = 0.0,
+    val direccionVerificada: String = "",
+    val ubicacionEsReal: Boolean = false,
+    val codigoBarras: String = ""
 )
 
 // Modelo de pedido
@@ -56,11 +61,13 @@ data class Pedido(
     val productoId: String = "",
     val productoNombre: String = "",
     val productoEmoji: String = "",
+    val productoCategoria: String = "",
     val consumidorId: String = "",
     val productorId: String = "",
     val cantidad: Int = 0,
     val total: Double = 0.0,
-    val estado: String = "pendiente" // "pendiente", "aceptado", "entregado"
+    val estado: String = "pendiente", // "pendiente", "aceptado", "entregado"
+    val timestamp: Long = System.currentTimeMillis()
 )
 
 // Modelo de mensaje de chat
@@ -70,5 +77,17 @@ data class Mensaje(
     val chatId: String = "", // "consumidorId_productorId"
     val emisorId: String = "",
     val texto: String = "",
+    val timestamp: Long = 0L
+)
+
+// Modelo de valoración y comentarios de compradores
+@Entity(tableName = "valoraciones")
+data class Valoracion(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val productoId: String = "",
+    val compradorId: String = "",
+    val compradorNombre: String = "",
+    val calificacion: Int = 5, // 1-5 estrellas
+    val comentario: String = "",
     val timestamp: Long = 0L
 )

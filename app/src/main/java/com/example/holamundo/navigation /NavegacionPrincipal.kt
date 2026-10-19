@@ -21,6 +21,8 @@ import com.example.holamundo.viewmodel.AuthViewModel
 import com.example.holamundo.viewmodel.CatalogoViewModel
 import com.example.holamundo.viewmodel.PedidosViewModel
 import com.example.holamundo.viewmodel.ChatViewModel
+import com.example.holamundo.screens.ar.VisualizadorARScreen
+import com.example.holamundo.screens.scanner.EscanerCodigoBarrasScreen
 
 @Composable
 fun NavegacionPrincipal() {
@@ -53,6 +55,7 @@ fun NavegacionPrincipal() {
                 onIrACatalogo = { navController.navigate(Rutas.Catalogo.ruta) },
                 onIrAPedidos = { navController.navigate(Rutas.MisPedidos.ruta) },
                 onIrAPerfil = { /* Manejado internamente por diálogo */ },
+                onIrAEscaner = { navController.navigate(Rutas.Escaner.ruta) },
                 onProductoClick = { producto ->
                     catalogoViewModel.seleccionarProducto(producto)
                     navController.navigate(Rutas.Detalle.crearRuta(producto.id))
@@ -77,6 +80,7 @@ fun NavegacionPrincipal() {
                 DetalleProductoScreen(
                     producto = prod,
                     authViewModel = authViewModel,
+                    catalogoViewModel = catalogoViewModel,
                     onVolver = { navController.popBackStack() },
                     onIrALogin = { navController.navigate(Rutas.Login.ruta) },
                     onHacerPedido = { _, cantidad ->
@@ -90,6 +94,14 @@ fun NavegacionPrincipal() {
                                 }
                             }
                         }
+                    },
+                    onContactarProductor = { prodId ->
+                        val consumidorId = authViewModel.usuarioActualUid ?: ""
+                        val chatId = "${consumidorId}_${prodId}"
+                        navController.navigate(Rutas.Chat.crearRuta(chatId))
+                    },
+                    onVerEnAR = { prodId ->
+                        navController.navigate(Rutas.VisualizadorAR.crearRuta(prodId))
                     }
                 )
             }
@@ -133,6 +145,7 @@ fun NavegacionPrincipal() {
                 onIrACatalogo = { navController.navigate(Rutas.Catalogo.ruta) },
                 onIrAPedidos = { navController.navigate(Rutas.MisPedidos.ruta) },
                 onIrAPerfil = { /* Manejado internamente por diálogo */ },
+                onIrAEscaner = { navController.navigate(Rutas.Escaner.ruta) },
                 onProductoClick = { producto ->
                     catalogoViewModel.seleccionarProducto(producto)
                     navController.navigate(Rutas.Detalle.crearRuta(producto.id))
@@ -185,6 +198,32 @@ fun NavegacionPrincipal() {
                 catalogoViewModel = catalogoViewModel,
                 onVolver = { navController.popBackStack() },
                 onAgregarExito = { navController.popBackStack() }
+            )
+        }
+
+        composable(Rutas.VisualizadorAR.ruta) { navBackStackEntry ->
+            val productoId = navBackStackEntry.arguments?.getString("productoId") ?: ""
+            VisualizadorARScreen(
+                productoId = productoId,
+                catalogoViewModel = catalogoViewModel,
+                onAtrasClick = { navController.popBackStack() }
+            )
+        }
+
+        composable(Rutas.Escaner.ruta) {
+            EscanerCodigoBarrasScreen(
+                catalogoViewModel = catalogoViewModel,
+                onProductoEncontrado = { prodId ->
+                    val todosProductos = catalogoViewModel.productosFiltrados.value
+                    val producto = todosProductos.firstOrNull { it.id == prodId }
+                    if (producto != null) {
+                        catalogoViewModel.seleccionarProducto(producto)
+                        navController.navigate(Rutas.Detalle.crearRuta(prodId)) {
+                            popUpTo(Rutas.Escaner.ruta) { inclusive = true }
+                        }
+                    }
+                },
+                onAtrasClick = { navController.popBackStack() }
             )
         }
     }

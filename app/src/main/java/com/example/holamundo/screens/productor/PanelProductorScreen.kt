@@ -25,6 +25,8 @@ import com.example.holamundo.model.Producto
 import com.example.holamundo.viewmodel.AuthViewModel
 import com.example.holamundo.viewmodel.CatalogoViewModel
 import com.example.holamundo.viewmodel.PedidosViewModel
+import androidx.compose.ui.platform.LocalContext
+import com.example.holamundo.utils.ReportGenerator
 
 private val VerdePrincipal = Colores.VerdePrincipal
 private val FondoOscuro    = Colores.FondoOscuro
@@ -42,6 +44,7 @@ fun PanelProductorScreen(
     onIrAlChat: (String) -> Unit, // chatId
     onCerrarSesionExito: () -> Unit
 ) {
+    val context = LocalContext.current
     val productorId = authViewModel.usuarioActualUid ?: ""
     val productorNombre = authViewModel.usuarioActualNombre ?: "Productor"
 
@@ -113,6 +116,82 @@ fun PanelProductorScreen(
                 .background(FondoOscuro)
                 .padding(paddingValues)
         ) {
+            // Cuadro de Resumen de Ventas
+            val totalVendidos = pedidosRecibidos.filter { it.estado == "entregado" || it.estado == "aceptado" }.sumOf { it.cantidad }
+            val gananciasTotales = pedidosRecibidos.filter { it.estado == "entregado" || it.estado == "aceptado" }.sumOf { it.total }
+
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = FondoTarjeta),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = "Estadísticas del Productor",
+                        color = Blanco,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Productos Vendidos",
+                                color = GrisTexto,
+                                fontSize = 12.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "$totalVendidos unidades",
+                                color = VerdePrincipal,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Ganancias Totales",
+                                color = GrisTexto,
+                                fontSize = 12.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "$${String.format("%.2f", gananciasTotales)}",
+                                color = Color(0xFF9FE1CB),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = {
+                            ReportGenerator.generarReporteProductor(
+                                context = context,
+                                productorNombre = productorNombre,
+                                productorEmail = authViewModel.usuarioActualEmail ?: "",
+                                productos = misProductos,
+                                pedidos = pedidosRecibidos
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = VerdePrincipal),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().height(36.dp),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text("📄 Descargar Reporte PDF", fontSize = 12.sp, color = Blanco, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
             // Tabs
             TabRow(
                 selectedTabIndex = tabSeleccionada,

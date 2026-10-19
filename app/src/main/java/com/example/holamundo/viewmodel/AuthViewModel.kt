@@ -33,6 +33,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     val usuarioActualNombre: String?
         get() = (_estadoAuth.value as? EstadoAuth.Logueado)?.nombre
 
+    // Obtiene el email del usuario logueado
+    val usuarioActualEmail: String?
+        get() = (_estadoAuth.value as? EstadoAuth.Logueado)?.email
+
     // Verifica el rol del usuario
     val esProductor: Boolean
         get() = (_estadoAuth.value as? EstadoAuth.Logueado)?.rol == RolUsuario.PRODUCTOR
@@ -97,6 +101,48 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     rol = rol
                 )
                 onResultado(true, "")
+            }
+        }
+    }
+
+    // Actualizar perfil del usuario en la base de datos local y refrescar estado
+    fun actualizarPerfil(
+        uid: String,
+        nuevoNombre: String,
+        nuevoEmail: String,
+        onResultado: (Boolean, String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val usuarioActual = usuarioDao.obtenerPorId(uid)
+                if (usuarioActual == null) {
+                    onResultado(false, "Usuario no encontrado")
+                    return@launch
+                }
+
+                // Si el correo cambia, validar que no esté ocupado
+                if (usuarioActual.email != nuevoEmail) {
+                    val existente = usuarioDao.obtenerPorEmail(nuevoEmail)
+                    if (existente != null) {
+                        onResultado(false, "El correo electrónico ya está en uso")
+                        return@launch
+                    }
+                }
+
+                val usuarioActualizado = usuarioActual.copy(nombre = nuevoNombre, email = nuevoEmail)
+                usuarioDao.actualizar(usuarioActualizado)
+
+                // Actualizar estadoAuth para reflejar cambios en la UI de inmediato
+                val rolEnum = if (usuarioActualizado.rol == "PRODUCTOR") RolUsuario.PRODUCTOR else RolUsuario.CONSUMIDOR
+                _estadoAuth.value = EstadoAuth.Logueado(
+                    uid = usuarioActualizado.uid,
+                    nombre = usuarioActualizado.nombre,
+                    email = usuarioActualizado.email,
+                    rol = rolEnum
+                )
+                onResultado(true, "")
+            } catch (e: Exception) {
+                onResultado(false, "Error al actualizar: ${e.message}")
             }
         }
     }
